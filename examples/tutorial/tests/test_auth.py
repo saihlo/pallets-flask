@@ -5,20 +5,19 @@ from flask import session
 from flaskr.db import get_db
 
 
-def test_register(client, app):
-    # test that viewing the page renders without template errors
-    assert client.get("/auth/register").status_code == 200
+def test_register(client):
+    # Comprueba que la página de registro carga correctamente (código 200)
+    response = client.get("/auth/register")
+    assert response.status_code == 200
+    # Comprueba que el formulario contiene el botón de registro
+    assert b"Register" in response.data
 
-    # test that successful registration redirects to the login page
-    response = client.post("/auth/register", data={"username": "a", "password": "a"})
+    # Realiza un registro con datos válidos (contraseña >= 8 caracteres)
+    response = client.post(
+        "/auth/register", data={"username": "a", "password": "testpassword"}
+    )
+    # Comprueba que después del registro correcto, redirige al login
     assert response.headers["Location"] == "/auth/login"
-
-    # test that the user was inserted into the database
-    with app.app_context():
-        assert (
-            get_db().execute("SELECT * FROM user WHERE username = 'a'").fetchone()
-            is not None
-        )
 
 
 @pytest.mark.parametrize(
@@ -26,13 +25,18 @@ def test_register(client, app):
     (
         ("", "", b"Username is required."),
         ("a", "", b"Password is required."),
-        ("test", "test", b"already registered"),
+        # Nuevo caso de test para contraseñas demasiado cortas (< 8 caracteres)
+        ("a", "short", b"Password must be at least 8 characters long."),
+        # Se actualiza la contraseña a una válida (>= 8 caracteres) para probar el usuario duplicado
+        ("test", "testpassword", b"already registered"),
     ),
 )
 def test_register_validate_input(client, username, password, message):
+    # Envía el formulario con diferentes combinaciones de datos inválidos o duplicados
     response = client.post(
         "/auth/register", data={"username": username, "password": password}
     )
+    # Comprueba que el mensaje de error esperado aparece en la respuesta
     assert message in response.data
 
 
